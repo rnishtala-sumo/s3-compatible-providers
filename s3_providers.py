@@ -81,6 +81,9 @@ class S3CompatibleClient:
         if region_name:
             config_dict['region_name'] = region_name
         
+        # Store region for later use
+        self.region_name = config_dict['region_name']
+        
         # Create boto3 configuration
         boto_config = Config(signature_version=config_dict['signature_version'])
         
@@ -115,7 +118,14 @@ class S3CompatibleClient:
         Returns:
             Response dictionary from the create operation
         """
-        return self.client.create_bucket(Bucket=bucket_name)
+        # For AWS S3, regions other than us-east-1 require CreateBucketConfiguration
+        if self.provider == 'aws' and self.region_name != 'us-east-1':
+            return self.client.create_bucket(
+                Bucket=bucket_name,
+                CreateBucketConfiguration={'LocationConstraint': self.region_name}
+            )
+        else:
+            return self.client.create_bucket(Bucket=bucket_name)
     
     def delete_bucket(self, bucket_name: str) -> Dict[str, Any]:
         """
@@ -134,7 +144,7 @@ class S3CompatibleClient:
         file_path: str,
         bucket_name: str,
         object_key: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> None:
         """
         Upload a file to a bucket.
         
@@ -144,19 +154,19 @@ class S3CompatibleClient:
             object_key: Optional key for the object (defaults to filename)
             
         Returns:
-            Response dictionary from the upload operation
+            None
         """
         if object_key is None:
             object_key = os.path.basename(file_path)
         
-        return self.client.upload_file(file_path, bucket_name, object_key)
+        self.client.upload_file(file_path, bucket_name, object_key)
     
     def download_file(
         self,
         bucket_name: str,
         object_key: str,
         file_path: str
-    ) -> Dict[str, Any]:
+    ) -> None:
         """
         Download a file from a bucket.
         
@@ -166,9 +176,9 @@ class S3CompatibleClient:
             file_path: Local path to save the downloaded file
             
         Returns:
-            Response dictionary from the download operation
+            None
         """
-        return self.client.download_file(bucket_name, object_key, file_path)
+        self.client.download_file(bucket_name, object_key, file_path)
     
     def list_objects(
         self,
